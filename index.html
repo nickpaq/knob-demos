@@ -176,18 +176,18 @@
     {
       name: "Vertical scrubbing only",
       sub: "current sensitivity",
-      range: 1,                 // multiplier on the ~1 inch full-range drag distance
+      span: () => dragPx(),     // finger travel for the full -12..+12 range
       down(s) {},
       move(s, e) {
         // drag up = higher, drag down = lower; relative to wherever the knob is
         const dy = s.lastY - e.clientY;
-        return clamp(s.value + dy * (MAX - MIN) / (dragPx() * this.range), MIN, MAX);
+        return clamp(s.value + dy * (MAX - MIN) / this.span(), MIN, MAX);
       },
     },
     {
       name: "Vertical scrubbing only",
       sub: "less sensitive",
-      range: 2.5,
+      span: () => window.innerHeight,   // full range = height of the screen
       down(s) {},
       move(s, e) { return behaviours[0].move.call(this, s, e); },
     },
