@@ -212,6 +212,7 @@
     state.held = true; state.pointerId = e.pointerId; state.lastY = e.clientY;
     knob.setPointerCapture(e.pointerId);
     knob.classList.add("held"); readout.classList.add("on");
+    document.documentElement.style.cursor = "ns-resize";
     const d = state.lastDown, now = performance.now();
     if (now - d.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - d.x, e.clientY - d.y) < DOUBLE_TAP_PX) {
       state.value = 0; state.lastDown = { t: 0, x: 0, y: 0 };   // double tap: reset
@@ -232,6 +233,7 @@
     if (!state.held || e.pointerId !== state.pointerId) return;
     state.held = false; state.pointerId = null;
     knob.classList.remove("held"); readout.classList.remove("on");
+    document.documentElement.style.cursor = "";
   };
   knob.addEventListener("pointerup", release);
   knob.addEventListener("pointercancel", release);
