@@ -73,6 +73,7 @@
     margin-left: calc(-1.5 * var(--u));
     background: #000; border-radius: 1px;
   }
+  #knob.snap .tick { transition: transform 150ms var(--ease); }
   #knob .name {
     position: absolute; inset: 0; display: grid; place-items: center;
     font: calc(46 * var(--u))/1 "Abel", "Arial Narrow", sans-serif;
@@ -151,7 +152,9 @@
 (() => {
   const MIN = -12, MAX = 12;       // semitones
   const SWEEP = 135;               // knob indicator degrees at min / max
-  const DRAG_PX = 300;             // finger travel (CSS px) for the full 24 semitone range
+  const DOUBLE_TAP_MS = 300, DOUBLE_TAP_PX = 30;
+  // Full range = just past the expanded knob's diameter (~1 inch on a phone)
+  const dragPx = () => stage.clientWidth * (295 / 1184) * 1.1;
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
@@ -163,7 +166,7 @@
       move(s, e) {
         // drag up = higher, drag down = lower; relative to wherever the knob is
         const dy = s.lastY - e.clientY;
-        return clamp(s.value + dy * (MAX - MIN) / DRAG_PX, MIN, MAX);
+        return clamp(s.value + dy * (MAX - MIN) / dragPx(), MIN, MAX);
       },
     },
   ];
@@ -174,7 +177,7 @@
   const pagesEl = document.getElementById("pages");
   const toast   = document.getElementById("toast");
 
-  const state = { value: 0, page: 0, held: false, pointerId: null, lastY: 0 };
+  const state = { value: 0, page: 0, held: false, pointerId: null, lastY: 0, lastDown: { t: 0, x: 0, y: 0 } };
 
   /* scale the screenshot-pixel unit (--u) to the rendered stage */
   const fit = () => stage.style.setProperty("--u", stage.clientWidth / 1184 + "px");
@@ -199,6 +202,14 @@
     state.held = true; state.pointerId = e.pointerId; state.lastY = e.clientY;
     knob.setPointerCapture(e.pointerId);
     knob.classList.add("held"); readout.classList.add("on");
+    const d = state.lastDown, now = performance.now();
+    if (now - d.t < DOUBLE_TAP_MS && Math.hypot(e.clientX - d.x, e.clientY - d.y) < DOUBLE_TAP_PX) {
+      state.value = 0; state.lastDown = { t: 0, x: 0, y: 0 };   // double tap: reset
+      knob.classList.add("snap"); render();
+      setTimeout(() => knob.classList.remove("snap"), 200);
+    } else {
+      state.lastDown = { t: now, x: e.clientX, y: e.clientY };
+    }
     behaviours[state.page].down(state, e);
   });
   knob.addEventListener("pointermove", e => {
