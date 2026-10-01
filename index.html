@@ -121,6 +121,16 @@
   }
   #pages button.active { background: var(--red); border-color: var(--red); color: #fff; }
 
+  /* touch indicator: 50% white circle under every finger */
+  .touch {
+    position: fixed; left: 0; top: 0; z-index: 10;
+    width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%;
+    background: #fff; opacity: .5; pointer-events: none;
+    transition: opacity .18s ease-out;
+    will-change: transform;
+  }
+  .touch.out { opacity: 0; }
+
   #toast {
     position: fixed; left: 50%; z-index: 5;
     bottom: calc(max(env(safe-area-inset-bottom), 10px) + 40px);
@@ -228,6 +238,25 @@
   knob.addEventListener("lostpointercapture", release);
   document.addEventListener("contextmenu", e => e.preventDefault());
   document.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+
+  /* ---- touch indicator ---- */
+  const touches = new Map();
+  const place = (el, e) => { el.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`; };
+  document.addEventListener("pointerdown", e => {
+    const el = document.createElement("div");
+    el.className = "touch"; place(el, e);
+    document.body.appendChild(el); touches.set(e.pointerId, el);
+  }, true);
+  document.addEventListener("pointermove", e => {
+    const el = touches.get(e.pointerId); if (el) place(el, e);
+  }, true);
+  const lift = e => {
+    const el = touches.get(e.pointerId); if (!el) return;
+    touches.delete(e.pointerId); el.classList.add("out");
+    setTimeout(() => el.remove(), 200);
+  };
+  document.addEventListener("pointerup", lift, true);
+  document.addEventListener("pointercancel", lift, true);
 
   /* ---- page buttons ---- */
   let toastTimer;
