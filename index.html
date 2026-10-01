@@ -135,12 +135,15 @@
     position: fixed; left: 50%; z-index: 5;
     bottom: calc(max(env(safe-area-inset-bottom), 10px) + 40px);
     transform: translateX(-50%);
-    padding: 6px 14px; border-radius: 14px;
-    background: rgba(0,0,0,.6); color: #fff;
-    font: 15px/1.2 "Abel", system-ui, sans-serif; letter-spacing: .04em;
+    padding: 8px 16px 9px; border-radius: 6px; text-align: center;
+    background: #fff; color: var(--red);
+    box-shadow: 0 2px 14px rgba(0,0,0,.4);
+    font: 17px/1.2 "Abel", system-ui, sans-serif; letter-spacing: .03em;
     opacity: 0; pointer-events: none; white-space: nowrap;
     transition: opacity .6s ease;
   }
+  #toast b { display: block; font-weight: normal; -webkit-text-stroke: .4px currentColor; }
+  #toast small { display: block; margin-top: 2px; font-size: 12px; opacity: .8; }
   #toast.show { opacity: 1; transition-duration: 60ms; }
 </style>
 </head>
@@ -171,13 +174,22 @@
   /* One entry per page. Each behaviour maps pointer movement to a pitch value. */
   const behaviours = [
     {
-      name: "Vertical",
+      name: "Vertical scrubbing only",
+      sub: "current sensitivity",
+      range: 1,                 // multiplier on the ~1 inch full-range drag distance
       down(s) {},
       move(s, e) {
         // drag up = higher, drag down = lower; relative to wherever the knob is
         const dy = s.lastY - e.clientY;
-        return clamp(s.value + dy * (MAX - MIN) / dragPx(), MIN, MAX);
+        return clamp(s.value + dy * (MAX - MIN) / (dragPx() * this.range), MIN, MAX);
       },
+    },
+    {
+      name: "Vertical scrubbing only",
+      sub: "less sensitive",
+      range: 2.5,
+      down(s) {},
+      move(s, e) { return behaviours[0].move.call(this, s, e); },
     },
   ];
 
@@ -265,7 +277,9 @@
   function selectPage(i) {
     state.page = i;
     [...pagesEl.children].forEach((b, n) => b.classList.toggle("active", n === i));
-    toast.textContent = behaviours[i].name;
+    toast.innerHTML = `<b></b><small></small>`;
+    toast.firstChild.textContent = behaviours[i].name;
+    toast.lastChild.textContent = behaviours[i].sub || "";
     toast.classList.add("show");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => toast.classList.remove("show"), 900);
