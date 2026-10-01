@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#2d111d">
+<title>Koala Knob Demos</title>
+<style>
+  @font-face { font-family: "Abel"; src: url("assets/Abel.ttf") format("truetype"); font-display: block; }
+  :root {
+    --bg: #2d111d;
+    --blue: #5fcef9;
+    --red: #eb445e;
+    --u: 1px;                 /* 1 screenshot pixel (1184 px wide), set from JS */
+
+    /* animation feel, measured from the screen recording */
+    --grow-ms: 100ms;
+    --shrink-ms: 130ms;
+    --ease: cubic-bezier(.2, .8, .25, 1);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); overflow: hidden;
+    overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+  }
+  body { display: grid; place-items: center; }
+
+  /* The screenshot, scaled to fit the screen */
+  #stage {
+    position: relative;
+    height: 100dvh; max-width: 100vw;
+    aspect-ratio: 1184 / 2576;
+    background: url("assets/bg.jpg") center / 100% 100% no-repeat;
+    touch-action: none;
+  }
+
+  /* ---- Pitch knob ---- */
+  #knob {
+    position: absolute;
+    left: calc(443.5 * var(--u)); top: calc(1111.5 * var(--u));
+    width: calc(170 * var(--u)); height: calc(170 * var(--u));
+    margin: calc(-85 * var(--u)) 0 0 calc(-85 * var(--u));
+    border-radius: 50%;
+    cursor: ns-resize;
+    touch-action: none;
+    clip-path: inset(calc(-300 * var(--u)) calc(-300 * var(--u)) calc(-80 * var(--u)) calc(-300 * var(--u)));
+  }
+  #knob .ring, #knob .disc {
+    position: absolute; inset: 0; border-radius: 50%;
+    transition:
+      transform var(--shrink-ms) var(--ease),
+      background-color var(--shrink-ms) var(--ease),
+      box-shadow var(--shrink-ms) var(--ease),
+      opacity var(--shrink-ms) var(--ease);
+  }
+  /* the thin offset outline you see around the resting knob */
+  #knob .ring {
+    border: calc(2.5 * var(--u)) solid rgba(214, 186, 200, .85);
+    transform: translate(calc(8 * var(--u)), calc(8 * var(--u)));
+  }
+  #knob .disc {
+    background: #fff;
+    box-shadow: 0 0 0 calc(1.5 * var(--u)) rgba(255,255,255,0), 0 0 0 0 rgba(0,0,0,0);
+  }
+  #knob .tick {
+    position: absolute; inset: 0;
+    transform: rotate(var(--angle, 0deg));
+  }
+  #knob .tick::before {
+    content: ""; position: absolute; left: 50%; top: 0;
+    width: calc(3 * var(--u)); height: calc(17 * var(--u));
+    margin-left: calc(-1.5 * var(--u));
+    background: #000; border-radius: 1px;
+  }
+  #knob .name {
+    position: absolute; inset: 0; display: grid; place-items: center;
+    font: calc(46 * var(--u))/1 "Abel", "Arial Narrow", sans-serif;
+    -webkit-text-stroke: calc(.6 * var(--u)) currentColor;
+    letter-spacing: calc(.5 * var(--u));
+    color: var(--red); pointer-events: none;
+  }
+
+  #knob.held .ring { opacity: 0; transform: translate(calc(8 * var(--u)), calc(8 * var(--u))) scale(1.74); }
+  #knob.held .disc {
+    background: var(--blue);
+    transform: translate(calc(8 * var(--u)), calc(8 * var(--u))) scale(1.74);
+    box-shadow: 0 0 0 calc(1 * var(--u)) rgba(150,150,150,.85),
+                0 0 calc(60 * var(--u)) calc(4 * var(--u)) rgba(0,0,0,.55);
+  }
+  #knob.held .ring, #knob.held .disc {
+    transition-duration: var(--grow-ms);
+  }
+
+  /* ---- "+12.00 semis" read-out ---- */
+  #readout {
+    position: absolute; left: calc(325 * var(--u)); top: calc(820 * var(--u));
+    width: calc(252 * var(--u)); height: calc(62 * var(--u));
+    display: grid; place-items: center;
+    background: #fff; color: var(--red);
+    font: calc(46 * var(--u))/1 "Abel", "Arial Narrow", sans-serif;
+    box-shadow: 0 0 calc(18 * var(--u)) rgba(0,0,0,.45);
+    opacity: 0; transition: opacity var(--shrink-ms) linear;
+    pointer-events: none; white-space: nowrap;
+  }
+  #readout.on { opacity: 1; transition-duration: 70ms; }
+
+  /* ---- Behaviour pages ---- */
+  #pages {
+    position: fixed; left: 0; right: 0; z-index: 5;
+    bottom: max(env(safe-area-inset-bottom), 10px);
+    display: flex; justify-content: center; gap: 10px;
+    touch-action: manipulation;
+  }
+  #pages button {
+    width: 28px; height: 28px; padding: 0; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.35); background: rgba(0,0,0,.35);
+    color: rgba(255,255,255,.7); font: 13px/1 "Abel", system-ui, sans-serif;
+    cursor: pointer;
+  }
+  #pages button.active { background: var(--red); border-color: var(--red); color: #fff; }
+
+  #toast {
+    position: fixed; left: 50%; z-index: 5;
+    bottom: calc(max(env(safe-area-inset-bottom), 10px) + 40px);
+    transform: translateX(-50%);
+    padding: 6px 14px; border-radius: 14px;
+    background: rgba(0,0,0,.6); color: #fff;
+    font: 15px/1.2 "Abel", system-ui, sans-serif; letter-spacing: .04em;
+    opacity: 0; pointer-events: none; white-space: nowrap;
+    transition: opacity .6s ease;
+  }
+  #toast.show { opacity: 1; transition-duration: 60ms; }
+</style>
+</head>
+<body>
+
+<div id="stage">
+  <div id="readout">0.00 semis</div>
+  <div id="knob" role="slider" aria-label="Pitch" aria-valuemin="-12" aria-valuemax="12" aria-valuenow="0">
+    <div class="ring"></div>
+    <div class="disc"><div class="tick"></div></div>
+    <div class="name">PITCH</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<nav id="pages" aria-label="Knob behaviours"></nav>
+
+<script>
+(() => {
+  const MIN = -12, MAX = 12;       // semitones
+  const SWEEP = 135;               // knob indicator degrees at min / max
+  const DRAG_PX = 300;             // finger travel (CSS px) for the full 24 semitone range
+
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  /* One entry per page. Each behaviour maps pointer movement to a pitch value. */
+  const behaviours = [
+    {
+      name: "Vertical",
+      down(s) {},
+      move(s, e) {
+        // drag up = higher, drag down = lower; relative to wherever the knob is
+        const dy = s.lastY - e.clientY;
+        return clamp(s.value + dy * (MAX - MIN) / DRAG_PX, MIN, MAX);
+      },
+    },
+  ];
+
+  const stage   = document.getElementById("stage");
+  const knob    = document.getElementById("knob");
+  const readout = document.getElementById("readout");
+  const pagesEl = document.getElementById("pages");
+  const toast   = document.getElementById("toast");
+
+  const state = { value: 0, page: 0, held: false, pointerId: null, lastY: 0 };
+
+  /* scale the screenshot-pixel unit (--u) to the rendered stage */
+  const fit = () => stage.style.setProperty("--u", stage.clientWidth / 1184 + "px");
+  new ResizeObserver(fit).observe(stage); fit();
+
+  const fmt = v => {
+    const r = Math.round(v * 100) / 100;
+    if (r === 0) return "0.00";
+    return (r > 0 ? "+" : "−") + Math.abs(r).toFixed(2);
+  };
+
+  function render() {
+    knob.style.setProperty("--angle", state.value / MAX * SWEEP + "deg");
+    knob.setAttribute("aria-valuenow", state.value.toFixed(2));
+    readout.textContent = fmt(state.value) + " semis";
+  }
+
+  /* ---- interaction ---- */
+  knob.addEventListener("pointerdown", e => {
+    if (state.held) return;
+    e.preventDefault();
+    state.held = true; state.pointerId = e.pointerId; state.lastY = e.clientY;
+    knob.setPointerCapture(e.pointerId);
+    knob.classList.add("held"); readout.classList.add("on");
+    behaviours[state.page].down(state, e);
+  });
+  knob.addEventListener("pointermove", e => {
+    if (!state.held || e.pointerId !== state.pointerId) return;
+    state.value = behaviours[state.page].move(state, e);
+    state.lastY = e.clientY;
+    render();
+  });
+  const release = e => {
+    if (!state.held || e.pointerId !== state.pointerId) return;
+    state.held = false; state.pointerId = null;
+    knob.classList.remove("held"); readout.classList.remove("on");
+  };
+  knob.addEventListener("pointerup", release);
+  knob.addEventListener("pointercancel", release);
+  knob.addEventListener("lostpointercapture", release);
+  document.addEventListener("contextmenu", e => e.preventDefault());
+  document.addEventListener("touchmove", e => e.preventDefault(), { passive: false });
+
+  /* ---- page buttons ---- */
+  let toastTimer;
+  function selectPage(i) {
+    state.page = i;
+    [...pagesEl.children].forEach((b, n) => b.classList.toggle("active", n === i));
+    toast.textContent = behaviours[i].name;
+    toast.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove("show"), 900);
+  }
+  behaviours.forEach((b, i) => {
+    const btn = document.createElement("button");
+    btn.textContent = i + 1;
+    btn.setAttribute("aria-label", b.name);
+    btn.addEventListener("click", () => selectPage(i));
+    pagesEl.appendChild(btn);
+  });
+  pagesEl.children[0].classList.add("active");
+  render();
+
+  /* test hook for screenshots */
+  window.__knob = { state, render };
+})();
+</script>
+</body>
+</html>
